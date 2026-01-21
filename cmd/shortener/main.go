@@ -27,7 +27,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePost(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("Content-Type") != "text/plain" {
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "text/plain") {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
