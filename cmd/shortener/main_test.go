@@ -70,3 +70,67 @@ func Test_handlePost(t *testing.T) {
 		})
 	}
 }
+
+func Test_handleGet(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		prepare    func()
+		statusCode int
+		location   string
+	}{
+		{
+			name: "Empty id",
+			path: "/",
+			prepare: func() {
+				storage = make(map[string]string)
+			},
+			statusCode: http.StatusBadRequest,
+		},
+		{
+			name: "ID not found",
+			path: "/eryuq",
+			prepare: func() {
+				storage = make(map[string]string)
+			},
+			statusCode: http.StatusBadRequest,
+		},
+
+		{
+			name: "Success",
+			path: "/eryuq",
+			prepare: func() {
+				storage = map[string]string{
+					"eryuq": "https://yandex.ru",
+				}
+			},
+			statusCode: http.StatusTemporaryRedirect,
+			location:   "https://yandex.ru",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.prepare != nil {
+				test.prepare()
+			}
+
+			request := httptest.NewRequest(http.MethodGet, test.path, nil)
+			request.Header.Set("Location", test.location)
+
+			w := httptest.NewRecorder()
+			handleGet(w, request)
+
+			res := w.Result()
+			defer res.Body.Close()
+
+			assert.Equal(t, test.statusCode, res.StatusCode)
+
+			if res.StatusCode == http.StatusTemporaryRedirect {
+				assert.Equal(t, test.location, res.Header.Get("Location"))
+
+			}
+
+		})
+	}
+}
