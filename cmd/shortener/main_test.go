@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -80,14 +81,6 @@ func Test_handleGet(t *testing.T) {
 		location   string
 	}{
 		{
-			name: "Empty id",
-			path: "/",
-			prepare: func() {
-				storage = make(map[string]string)
-			},
-			statusCode: http.StatusBadRequest,
-		},
-		{
 			name: "ID not found",
 			path: "/eryuq",
 			prepare: func() {
@@ -115,20 +108,25 @@ func Test_handleGet(t *testing.T) {
 				test.prepare()
 			}
 
-			request := httptest.NewRequest(http.MethodGet, test.path, nil)
-			request.Header.Set("Location", test.location)
+			r := chi.NewRouter()
+			r.Get("/{id}", handleGet)
 
-			w := httptest.NewRecorder()
-			handleGet(w, request)
+			server := httptest.NewServer(r)
+			defer server.Close()
 
-			res := w.Result()
-			defer res.Body.Close()
+			client := &http.Client{
+				CheckRedirect: func(req *http.Request, via []*http.Request) error {
+					return http.ErrUseLastResponse
+				},
+			}
 
-			assert.Equal(t, test.statusCode, res.StatusCode)
+			resp, err := client.Get(server.URL + test.path)
+			require.NoError(t, err)
+			defer resp.Body.Close()
 
-			if res.StatusCode == http.StatusTemporaryRedirect {
-				assert.Equal(t, test.location, res.Header.Get("Location"))
-
+			assert.Equal(t, test.statusCode, resp.StatusCode)
+			if test.statusCode == http.StatusTemporaryRedirect {
+				assert.Equal(t, test.location, resp.Header.Get("Location"))
 			}
 
 		})

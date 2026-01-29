@@ -2,29 +2,18 @@ package main
 
 import (
 	"io"
+	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
 
 const baseUrl = "http://localhost:8080/"
 
 var storage = make(map[string]string)
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	switch {
-	case r.Method == http.MethodPost && r.URL.Path == "/":
-		handlePost(w, r)
-		return
-	case r.Method == http.MethodGet && r.URL.Path != "/":
-		handleGet(w, r)
-		return
-	default:
-		w.WriteHeader(http.StatusBadRequest)
-
-	}
-}
 
 func handlePost(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "text/plain") {
@@ -53,15 +42,13 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 	id := generateShortUrl()
 	storage[id] = originUrl
 
-	shortUrl := baseUrl + id
-
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(shortUrl))
+	w.Write([]byte(baseUrl + id))
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimPrefix(r.URL.Path, "/")
+	id := chi.URLParam(r, "id")
 	if id == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -90,11 +77,10 @@ func generateShortUrl() string {
 }
 
 func main() {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", handler)
+	r := chi.NewRouter()
 
-	err := http.ListenAndServe(`:8080`, mux)
-	if err != nil {
-		panic(err)
-	}
+	r.Post("/", handlePost)
+	r.Get("/{id}", handleGet)
+
+	log.Fatal(http.ListenAndServe(`:8080`, r))
 }
