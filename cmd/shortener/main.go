@@ -9,42 +9,43 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/valentinalutsenko/go-short/internal/config"
 )
-
-const baseUrl = "http://localhost:8080/"
 
 var storage = make(map[string]string)
 
-func handlePost(w http.ResponseWriter, r *http.Request) {
-	if !strings.HasPrefix(r.Header.Get("Content-Type"), "text/plain") {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+func handlePost(baseUrl string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.Header.Get("Content-Type"), "text/plain") {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		originUrl := strings.TrimSpace(string(body))
+		if originUrl == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		parsedUrl, err := url.ParseRequestURI(originUrl)
+		if err != nil || parsedUrl.Scheme == "" || parsedUrl.Host == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		id := generateShortUrl()
+		storage[id] = originUrl
+
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(baseUrl + id))
 	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	originUrl := strings.TrimSpace(string(body))
-	if originUrl == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	parsedUrl, err := url.ParseRequestURI(originUrl)
-	if err != nil || parsedUrl.Scheme == "" || parsedUrl.Host == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	id := generateShortUrl()
-	storage[id] = originUrl
-
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(baseUrl + id))
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
@@ -77,10 +78,12 @@ func generateShortUrl() string {
 }
 
 func main() {
+	cfg := config.ParseFlags()
+
 	r := chi.NewRouter()
 
-	r.Post("/", handlePost)
+	r.Post("/", handlePost(cfg.BaseURL))
 	r.Get("/{id}", handleGet)
 
-	log.Fatal(http.ListenAndServe(`:8080`, r))
+	log.Fatal(http.ListenAndServe(cfg.ServerAddress, r))
 }

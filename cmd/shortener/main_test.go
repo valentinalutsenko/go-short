@@ -14,6 +14,8 @@ import (
 
 func Test_handlePost(t *testing.T) {
 	storage = make(map[string]string)
+
+	baseURL := "http://localhost:8080"
 	pattern := `^http://localhost:8080/[a-zA-Z0-9]{5}$`
 
 	tests := []struct {
@@ -48,13 +50,15 @@ func Test_handlePost(t *testing.T) {
 		},
 	}
 
+	handle := handlePost(baseURL)
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(test.body))
 			request.Header.Set("Content-Type", test.contentType)
 
 			w := httptest.NewRecorder()
-			handlePost(w, request)
+			handle(w, request)
 
 			res := w.Result()
 			defer res.Body.Close()
